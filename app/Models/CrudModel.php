@@ -21,6 +21,18 @@ class CrudModel
         return $result;
     }
 
+    public function insertItem($table, $data)
+    {
+        $this->db->table($table)->insert($data);
+        return $this->db->insertID();
+    }
+
+    public function updateItem($table, $where, $data)
+    {
+        $this->db->table($table)->where($where)->update($data);
+        return $this->db->affectedRows();
+    }
+
     function get_primary_key_field_name($table)
     {
         $query = "SHOW KEYS FROM $table WHERE Key_name = 'PRIMARY'";
@@ -202,5 +214,13 @@ class CrudModel
 
 
         return $page_items;
+    }
+
+
+    public function getRelationItems($table, $orderField, $orderDirection)
+    {
+        return $this->db->table($table)
+            ->orderBy($orderField, $orderDirection)
+            ->getResult();
     }
 }

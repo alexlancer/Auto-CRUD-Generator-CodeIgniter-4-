@@ -5,20 +5,20 @@ namespace App\Controllers;
 use App\Libraries\Crud;
 
 
-class Users extends BaseController
+class Projects extends BaseController
 {
 	protected $crud;
 
 	function __construct()
 	{
 		$params = [
-			'table' => 'users',
+			'table' => 'projects',
 			'dev' => false,
 			'fields' => $this->field_options(),
-			'form_title_add' => 'Add User',
-			'form_title_update' => 'Edit User',
+			'form_title_add' => 'Add Project',
+			'form_title_update' => 'Edit Project',
 			'form_submit' => 'Add',
-			'table_title' => 'Users',
+			'table_title' => 'Projects',
 			'form_submit_update' => 'Update',
 			'base' => '',
 
@@ -38,13 +38,13 @@ class Users extends BaseController
 		$data['title'] = $this->crud->getTableTitle();
 
 		$per_page = 10;
-		$columns = ['u_id', 'u_firstname', 'u_lastname', 'u_email', 'u_status'];
+		$columns = [];
 		$where = null;//['u_status =' => 'Active'];
 		$order = [
-			['u_id', 'ASC']
+			['p_id', 'ASC']
 		];
 		$data['table'] = $this->crud->view($page, $per_page, $columns, $where, $order);
-		return view('admin/users/table', $data);
+		return view('admin/projects/table', $data);
 	}
 
 	public function add(){
@@ -54,7 +54,7 @@ class Users extends BaseController
 		if(is_array($form) && isset($form['redirect']))
 			return redirect()->to($form['redirect']);
 
-		return view('admin/users/form', $data);
+		return view('admin/projects/form', $data);
 	}
 
 	public function edit($id)
@@ -69,26 +69,27 @@ class Users extends BaseController
 		if (is_array($form) && isset($form['redirect']))
 			return redirect()->to($form['redirect']);
 		
-		return view('admin/users/form', $data);
+		return view('admin/projects/form', $data);
 	}
 
 
 	protected function field_options()
 	{
 		$fields = [];
-		$field['u_id'] = ['label' => 'ID'];
-		$fields['u_firstname'] = ['label' => 'First Name', 'required' => true, 'helper' => 'Type your First name', 'class' => 'col-12 col-sm-6'];
-		$fields['u_lastname'] = ['label' =>'Last Name', 'required' => true, 'helper' => 'Type your Last name', 'class' => 'col-12 col-sm-6'];
-		$fields['u_email'] = ['label' => 'Email','required' => true, 'unique' => [true, 'u_email']];
-		$fields['u_status'] = ['label' => 'Status','required' => true,];
-		$fields['u_created_at'] = ['label' => 'Created at', 'only_edit' => true];
-		$fields['u_password'] = ['label' => 'Password',
-		 'required' => true, 
-		 'only_add' => true,
-		 'type' => 'password',
-			'class' => 'col-12 col-sm-6',
-		 'confirm' => true, 
-		 'password_hash' => true];
+		$fields['p_description'] = ['label' => 'Description', 'type' => 'editor'];
+		// $field['u_id'] = ['label' => 'ID'];
+		// $fields['u_firstname'] = ['label' => 'First Name', 'required' => true, 'helper' => 'Type your First name', 'class' => 'col-12 col-sm-6'];
+		// $fields['u_lastname'] = ['label' =>'Last Name', 'required' => true, 'helper' => 'Type your Last name', 'class' => 'col-12 col-sm-6'];
+		// $fields['u_email'] = ['label' => 'Email','required' => true, 'unique' => [true, 'u_email']];
+		// $fields['u_status'] = ['label' => 'Status','required' => true,];
+		// $fields['u_created_at'] = ['label' => 'Created at', 'only_edit' => true];
+		// $fields['u_password'] = ['label' => 'Password',
+		//  'required' => true, 
+		//  'only_add' => true,
+		//  'type' => 'password',
+		// 	'class' => 'col-12 col-sm-6',
+		//  'confirm' => true, 
+		//  'password_hash' => true];
 
 		return $fields;
 	}
