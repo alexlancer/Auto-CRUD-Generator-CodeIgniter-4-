@@ -37,9 +37,9 @@ class Projects extends BaseController
 
 		$data['title'] = $this->crud->getTableTitle();
 
-		$per_page = 10;
-		$columns = [];
-		$where = null;//['u_status =' => 'Active'];
+		$per_page = 20;
+		$columns = ['p_id', 'p_uid', 'p_title', 'p_price', 'tags', 'p_start_date', 'p_end_date', 'p_status',];
+		$where = null; //['u_status =' => 'Active'];
 		$order = [
 			['p_id', 'ASC']
 		];
@@ -47,11 +47,13 @@ class Projects extends BaseController
 		return view('admin/projects/table', $data);
 	}
 
-	public function add(){
+	public function add()
+	{
+
 		$data['form'] = $form = $this->crud->form();
 		$data['title'] = $this->crud->getAddTitle();
 
-		if(is_array($form) && isset($form['redirect']))
+		if (is_array($form) && isset($form['redirect']))
 			return redirect()->to($form['redirect']);
 
 		return view('admin/projects/form', $data);
@@ -59,16 +61,16 @@ class Projects extends BaseController
 
 	public function edit($id)
 	{
-		if(!$this->crud->current_values($id))
+		if (!$this->crud->current_values($id))
 			return redirect()->to($this->crud->getBase() . '/' . $this->crud->getTable());
 
-			$data['item_id'] = $id;
+		$data['item_id'] = $id;
 		$data['form'] = $form = $this->crud->form();
 		$data['title'] = $this->crud->getEditTitle();
 
 		if (is_array($form) && isset($form['redirect']))
 			return redirect()->to($form['redirect']);
-		
+
 		return view('admin/projects/form', $data);
 	}
 
@@ -76,21 +78,43 @@ class Projects extends BaseController
 	protected function field_options()
 	{
 		$fields = [];
+		$fields['p_id'] = ['label' => 'ID'];
+		$fields['p_uid'] = [
+			'label' => 'User',
+			'required' => true,
+			'type' => 'dropdown',
+			'relation' => [
+				'table'=> 'users',
+				'primary_key' => 'u_id',
+				'display' => ['u_firstname', 'u_lastname'],
+				'order_by' => 'u_firstname',
+				'order' => 'ASC'
+				]
+			];
+		$fields['tags'] = [
+			'label' => 'Tags',
+			'required' => false,
+			'type' => 'checkboxes',
+			'relation' => [
+				'save_table' => 'project_tags',
+				'parent_field' => 'pt_project_id',
+				'child_field' => 'pt_tag_id',
+				'inner_class' => 'col-6 col-sm-3',
+				'table' => 'tags',
+				'primary_key' => 't_id',
+				'display' => ['t_name'],
+				'order_by' => 't_name',
+				'order' => 'ASC'
+			]
+		];
 		$fields['p_description'] = ['label' => 'Description', 'type' => 'editor'];
-		// $field['u_id'] = ['label' => 'ID'];
-		// $fields['u_firstname'] = ['label' => 'First Name', 'required' => true, 'helper' => 'Type your First name', 'class' => 'col-12 col-sm-6'];
-		// $fields['u_lastname'] = ['label' =>'Last Name', 'required' => true, 'helper' => 'Type your Last name', 'class' => 'col-12 col-sm-6'];
-		// $fields['u_email'] = ['label' => 'Email','required' => true, 'unique' => [true, 'u_email']];
-		// $fields['u_status'] = ['label' => 'Status','required' => true,];
-		// $fields['u_created_at'] = ['label' => 'Created at', 'only_edit' => true];
-		// $fields['u_password'] = ['label' => 'Password',
-		//  'required' => true, 
-		//  'only_add' => true,
-		//  'type' => 'password',
-		// 	'class' => 'col-12 col-sm-6',
-		//  'confirm' => true, 
-		//  'password_hash' => true];
-
+		$fields['p_start_date'] = ['label' => 'Starts at', 'required' => true, 'class' => 'col-12 col-sm-6'];
+		$fields['p_end_date'] = ['label' => 'Ends at', 'required' => true, 'class' => 'col-12 col-sm-6'];
+		$fields['p_title'] = ['label' => 'Title', 'required' => true];
+		$fields['p_status'] = ['label' => 'Status', 'required' => true, 'class' => 'col-12 col-sm-6'];
+		$fields['p_price'] = ['label' => 'Price', 'required' => true, 'class' => 'col-12 col-sm-6'];
+		$fields['p_created_at'] = ['type' => 'unset'];
+		$fields['p_updated_at'] = ['type' => 'unset'];
 		return $fields;
 	}
 

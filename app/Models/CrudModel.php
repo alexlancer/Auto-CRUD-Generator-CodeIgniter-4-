@@ -49,9 +49,12 @@ class CrudModel
     }
 
     //Get total rows per request
-    public function countTotalRows($table, $where = null, $request, $schema)
+    public function countTotalRows($table, $where = null, $request, $schema, $fields)
     {
         $count_query = "SELECT COUNT(*) as total FROM " . $table;
+        //get primary_key field name
+        $pk = $this->get_primary_key_field_name($table);
+
         if ($where) {
             $count_query .= " WHERE (";
             $i = 0;
@@ -82,8 +85,13 @@ class CrudModel
                 $tempQuery .= " WHERE ";
             $tempQuery .= " ( ";
             $i = 0;
+            // echo '<pre>';
+            //  print_r($schema);
+            // echo '<pre>';
             foreach ($schema as $column) {
                 if (trim($request->getPost($column->Field)) == '')
+                    continue;
+                if ($column->Extra == 'other_table')
                     continue;
 
                 $allEmpty = false;
@@ -111,12 +119,13 @@ class CrudModel
     public function getItems($table, $where = null, $request, $schema, $fields, $order, $offset, $per_page)
     {
         $result_query = "SELECT * FROM " . $table;
-
+        //get primary_key field name
+        $pk = $this->get_primary_key_field_name($table);
 
 
         //Check for relation fields
         foreach ($fields as $key => $rel_field) {
-            if (isset($rel_field['relation'])) {
+            if (isset($rel_field['relation']) && !isset($rel_field['relation']['save_table'])) {
                 $rfield = $rel_field['relation'];
                 $result_query .= " LEFT JOIN  " . $rfield['table'] . " ON " . $table . '.' . $key . "=" . $rfield['table'] . "." . $rfield['primary_key'] . "  ";
                 //$this->db->join($rfield['table'], $table.'.'.$key.'='.$rfield['table'].'.'.$rfield['primary_key'], 'left');
@@ -144,7 +153,9 @@ class CrudModel
             }
             $result_query .= ")";
         }
+
         if ($request->getPost('table_search')) {
+
             $allEmpty = true;
             $tempQuery = '';
             $i = 0;
@@ -153,7 +164,7 @@ class CrudModel
             else
                 $tempQuery .= " WHERE ";
 
-            $tempQuery .= " ( ";
+            //$tempQuery .= " ( ";
 
             foreach ($schema as $column) {
 
@@ -161,31 +172,83 @@ class CrudModel
                     continue;
 
                 $allEmpty = false;
+                $col_search = [];
+                $col_search[] = $column->Field;
+                if (isset($fields[$column->Field]['relation']) && isset($fields[$column->Field]['relation']['save_table'])) {
+                    //Search relational table to get the ids of related ids
+                    $relField = $fields[$column->Field]['relation'];
 
-                $col_search = $column->Field;
-                if (isset($fields[$column->Field]['relation'])) {
-                    //check if display is an array of columns
-                    if (is_array($fields[$column->Field]['relation']['display'])) {
-                        $col_search = $fields[$column->Field]['relation']['display'][0];
-                    } else {
-                        $col_search = $fields[$column->Field]['relation']['display'];
+                    $parent_table = $relField['table'];
+                    $relation_table = $relField['save_table'];
+                    $joinString = $relation_table . '.' . $relField['child_field'] . '=' . $parent_table . '.' . $relField['primary_key'];
+                    $likeColumns = $relField['display'];
+                    $likeTerm = $request->getPost($column->Field);
+                    //$relselect is optional. when used it will add DISTINCT to prevent dublicates
+                    $relSelect = $relation_table . '.' . $relField['parent_field'];
+                    $relatedItems = $this->searchRelatedItems($parent_table, $relation_table, $joinString, $likeColumns, $likeTerm, $relSelect);
+                    $relatedItemsIdArr = [];
+                    if (!$relatedItems)
+                        $relatedItemsIdArr = '-1';
+                    else {
+                        //Create an array of ids for whereIn statement
+                        foreach ($relatedItems as $relatedItem) {
+                            $relatedItemsIdArr[] = $relatedItem->{$relField['parent_field']};
+                        }
                     }
+
+                    if ($i > 0)
+                        $tempQuery .= " AND ";
+
+                    if (is_array($relatedItemsIdArr))
+                        $relTempQuery = '' . $table . '.' . $pk . ' IN (' . implode(',', $relatedItemsIdArr) . ')';
+                    else
+                        $relTempQuery = $table . '.' . $pk . ' = ' . $relatedItemsIdArr;
+
+                    //  echo $tempQuery.'<br>';
+                    $tempQuery .= $relTempQuery;
+                    //  echo $tempQuery;
+
+                    $i++;
+                    //$allEmpty = false;
+                    continue;
+                } else if (isset($fields[$column->Field]['relation'])) {
+
+                    $col_search = $fields[$column->Field]['relation']['display'];
+                    //check if display is an array of columns
+                    if (!is_array($col_search))
+                        $col_search[] = $col_search;
+
                     $table_search = $fields[$column->Field]['relation']['table'];
                 } else {
                     $table_search = $table;
+
+                    //$col_search[] = $column->Field;
                 }
                 if ($i > 0)
                     $tempQuery .= " AND ";
 
-                $tempQuery .= " " . $table_search . "." . $col_search
-                    . " LIKE '%"
-                    . trim($this->db->escapeLikeString($request->getPost($column->Field)))
-                    . "%' ESCAPE '!'";
+
+                //For loop is required when search must be performed in multiple relational columns from another table
+                $searchLikeTempQuery = '';
+                $searchLikeTempQueryArr = [];
+                foreach ($col_search as $colToSearch) {
+                    $searchLikeTempQueryArr[] = $this->generateLikeClause($table_search, $colToSearch, $request->getPost($column->Field));
+                }
+
+                if (count($col_search) > 1) {
+                    $searchLikeTempQuery = implode(' OR ', $searchLikeTempQueryArr);
+                    $searchLikeTempQuery = "($searchLikeTempQuery)";
+                } else
+                    $searchLikeTempQuery = $searchLikeTempQueryArr[0];
+
+
+                $tempQuery .= $searchLikeTempQuery;
+
                 //$this->db->like($table_search.'.'.$col_search, $request->getPost($column->Field), 'both');
                 $i++;
             }
 
-            $tempQuery .= " ) ";
+            $tempQuery .= isset($searchLikeTempQuery) ?  "  " : "";
             if (!$allEmpty)
                 $result_query .= $tempQuery;
         }
@@ -201,8 +264,7 @@ class CrudModel
                 $i++;
             }
         } else {
-            //get primary_key field name
-            $pk = $this->get_primary_key_field_name($table);
+
             $result_query .= " ORDER BY " . $pk . " DESC";
             //$this->db->order_by($pk, 'DESC');
         }
@@ -210,6 +272,7 @@ class CrudModel
         $result_query = rtrim($result_query, ',');
         $result_query .= " LIMIT $offset, $per_page ";
         //$this->db->limit($per_page, $offset);
+
         $page_items = $this->db->query($result_query)->getResult();
 
 
@@ -217,10 +280,71 @@ class CrudModel
     }
 
 
-    public function getRelationItems($table, $orderField, $orderDirection)
+    public function getRelationItems($table, $where = null, $orderField = null, $orderDirection = null)
     {
-        return $this->db->table($table)
-            ->orderBy($orderField, $orderDirection)
+        $builder = $this->db->table($table);
+
+        if ($where)
+            $builder->where($where);
+
+        if ($orderField)
+            $builder->orderBy($orderField, $orderDirection);
+
+        $items = $builder->get()
             ->getResult();
+
+        return $items;
+    }
+
+    public function deleteItems($table, $where = null, $whereInField = null, $whereInValue = null)
+    {
+        $builder = $this->db->table($table);
+
+        if ($where)
+            $builder->where($where);
+
+        if ($whereInField && $whereInValue)
+            $builder->whereIn($whereInField, $whereInValue);
+
+        return $builder->delete();
+    }
+
+    public function batchInsert($table, $data)
+    {
+        $builder = $this->db->table($table);
+        return $builder->insertBatch($data);
+    }
+
+    public function getRelationItemsJoin($table, $where, $joinTable, $joinString)
+    {
+        $builder = $this->db->table($table);
+        $builder->where($where);
+        $builder->join($joinTable, $joinString);
+        return $builder->get()->getResult();
+    }
+
+    public function searchRelatedItems($parent_table, $relation_table, $joinString, $likeColumns, $likeTerm, $select = '*')
+    {
+        $builder = $this->db->table($relation_table);
+        $builder->select($select);
+        $builder->join($parent_table, $joinString);
+        for ($i = 0; $i < count($likeColumns); $i++) {
+            if ($i < 1) {
+                $builder->like($parent_table . '.' . $likeColumns[$i], $likeTerm);
+            } else {
+                $builder->orLike($parent_table . '.' . $likeColumns[$i], $likeTerm);
+            }
+        }
+
+        return $builder->distinct()->get()->getResult();
+    }
+
+
+    public function generateLikeClause($table_search, $colToSearch, $searchTerm)
+    {
+        return $table_search . "." . $colToSearch
+            . " LIKE '%"
+            . trim($this->db->escapeLikeString($searchTerm))
+            . "%' ESCAPE '!'";
     }
 }

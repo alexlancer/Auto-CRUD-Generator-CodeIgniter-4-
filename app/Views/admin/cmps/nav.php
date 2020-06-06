@@ -15,5 +15,17 @@
                 <p>Users</p>
             </a>
         </li>
+        <li class="nav-item">
+            <a href="/projects" class="nav-link <?= $request->uri->getSegment(1) == 'projects' ? 'active' : null; ?>">
+                <i class="nav-icon fas fa-cubes"></i>
+                <p>Projects</p>
+            </a>
+        </li>
+        <li class="nav-item">
+            <a href="/tags" class="nav-link <?= $request->uri->getSegment(1) == 'tags' ? 'active' : null; ?>">
+                <i class="nav-icon fas fa-tags"></i>
+                <p>Tags</p>
+            </a>
+        </li>
     </ul>
 </nav>
