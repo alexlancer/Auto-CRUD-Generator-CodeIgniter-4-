@@ -1,4 +1,4 @@
-# CodeIgniter 4 Application Starter
+# Auto CRUD Generator for CodeIgniter 4
 
 ## What is CodeIgniter?
 
