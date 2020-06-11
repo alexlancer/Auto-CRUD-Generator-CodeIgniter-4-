@@ -23,6 +23,8 @@ class Crud_core
         $db, //db connection instance
         $model, //db connection instance
         $request,
+        $files = [], //when current_values() is executed all fields that have type 'file' or 'files' will be stored here
+        $multipart = false,
         $validator = false;
 
     function __construct($params, RequestInterface $request)
@@ -45,6 +47,8 @@ class Crud_core
         if (isset($params['fields']) && $params['fields']) {
             $this->fields = $params['fields'];
             foreach ($this->fields as $key => $field) {
+
+                //Adding custom fields to schema for relational table
                 if (isset($field['relation']) && isset($field['relation']['save_table'])) {
                     $newSchema = [
                         'Field' => $key,
@@ -55,12 +59,29 @@ class Crud_core
                     ];
                     $this->schema[] = (object) $newSchema;
                 }
+
+                //Adding custom fields to schema for relational table for files
+                if (isset($field['files_relation']) && isset($field['files_relation']['files_table'])) {
+                    $newSchema = [
+                        'Field' => $key,
+                        'Type' => 'text',
+                        'Key' => '',
+                        'Default' => '',
+                        'Extra' => 'file_table'
+                    ];
+                    $this->schema[] = (object) $newSchema;
+                }
             }
         }
         //Base uri
         if (isset($params['base']) && $params['base']) {
             $this->base = $params['base'];
         }
+
+        //Check if form contains file fields
+        $this->multipart = $this->formHasFileFields();
+
+
         //Show MySQL schema
         if (isset($params['dev']) && $params['dev']) {
             echo "<pre>";
@@ -77,11 +98,28 @@ class Crud_core
     {
         $this->id_field = $this->get_primary_key_field_name();
 
-        $this->current_values = $item = $this->model->getItem($this->table, $this->id_field, $id);
+        $this->current_values = $item = $this->model->getItem($this->table, [$this->id_field => $id]);
         if (!$item) {
             $this->flash('warning', 'The record does not exist');
             return false;
         }
+
+        foreach ($this->fields as $field => $options) {
+
+            if (isset($options['type']) && $options['type'] == 'file') {
+                $this->files[$field] = $item->{$field};
+            }
+
+            if (isset($options['type']) && $options['type'] == 'files') {
+
+                $fileTable = $options['files_relation']['files_table'];
+                $where = [$options['files_relation']['parent_field'] => $id];
+                $files = $this->model->getAnyItems($fileTable, $where);
+                $this->files[$field] = $files;
+            }
+        }
+
+
 
         $this->id = $id;
         $this->action = 'edit';
@@ -113,12 +151,26 @@ class Crud_core
         $post = $this->request->getPost();
 
         if (isset($post['form'])) {
+
             //This $_POST['form'] is just to check if the $_POST values are from
             // form submition and not search or something else
             unset($post['form']);
 
             if (isset($post['files']))
                 unset($post['files']);
+
+            if ($_FILES && isset($_FILES['files']))
+                unset($_FILES['files']);
+
+            // echo '<pre>';
+            // print_r($_FILES);
+            // echo '<pre>';
+            // exit;
+
+            $file_fields = [];
+            foreach ($_FILES as $file_field_name => $file_field_value) {
+                $file_fields[] = $file_field_name;
+            }
 
             //Create rules
             $novalidation = true;
@@ -135,10 +187,39 @@ class Crud_core
                     ($this->action == 'edit' && !isset($params['only_add']) && @$params['only_add'] !== TRUE)
                 ) {
                     $theLabel = $this->get_label($this->fields[$field], $field);
-                    if ((isset($params['required']) && $params['required'] === TRUE) || (isset($params['type']) && $params['type'] == 'hidden')) {
+
+                    if (isset($params['type']) && ($params['type'] == 'file' || $params['type'] == 'files')) {
+                        $fileRulesArr = [];
+                        $multi = $params['type'] == 'file' ? false : true;
+                        if (isset($params['required']) && $params['required'] === TRUE) {
+                            if ($multi) {
+                                $fileFieldName = $field . '.0';
+                                $unsets[] = $field;
+                            } else
+                                $fileFieldName = $field;
+
+                            $fileRulesArr[] = 'uploaded[' . $fileFieldName . ']';
+                        }
+
+                        if (isset($params['max_size']))
+                            $fileRulesArr[] = 'max_size[' . $field . ',' . $params['max_size'] . ']';
+
+                        if (isset($params['is_image']) && $params['is_image'] === TRUE)
+                            $fileRulesArr[] = 'is_image[' . $field . ']';
+
+                        if (isset($params['ext_in']))
+                            $fileRulesArr[] = 'ext_in[' . $field . ',' . $params['ext_in'] . ']';
+
+                        $fileRules = implode('|', $fileRulesArr);
+
+                        $this->validator->setRule($field, $theLabel, $fileRules);
+                    } elseif ((isset($params['required']) && $params['required'] === TRUE) || (isset($params['type']) && $params['type'] == 'hidden')) {
                         $novalidation = false;
+
                         $this->validator->setRule($field, $theLabel, 'required');
                     }
+
+
                     if (isset($params['unique']) && isset($params['unique'][0]) && isset($params['unique'][1]) && $params['unique'][0] === TRUE) {
                         $unique_field = $params['unique'][1];
                         if (!isset($this->current_values) || $this->current_values->{$unique_field} != $post[$unique_field]) {
@@ -207,6 +288,21 @@ class Crud_core
                     $post[$hashIt] = password_hash($hashIt, PASSWORD_DEFAULT);
                 }
 
+                //If file fields exist do the uplaod
+                $filesData = [];
+                if ($file_fields) {
+                    foreach ($file_fields as $file_field) {
+                        $fileFieldOptions = $this->fields[$file_field];
+                        //Single file (meaning that the name will be saved in the same table)
+
+                        if ($fileFieldOptions['type'] == 'file') {
+                            $uploadedFileName = $this->fileHandler($file_field, $this->fields[$file_field]);
+                            if ($uploadedFileName)
+                                $post[$file_field] = $uploadedFileName;
+                        } elseif ($fileFieldOptions['type'] == 'files')
+                            $filesData[$file_field] = $fileFieldOptions;
+                    }
+                }
 
                 if ($this->action == 'add') {
                     if (!$this->current_values) {
@@ -230,7 +326,7 @@ class Crud_core
                     $affected = $this->model->updateItem($this->table, [$this->id_field => $this->id], $update_data);
 
                     //Do not set flash if there is $otherTables (from relational options)
-                    if (!$otherTables) {
+                    if (!$otherTables && !$filesData) {
                         if ($affected == 1)
                             $this->flash('success', 'Successfully Updated');
                         else
@@ -277,10 +373,12 @@ class Crud_core
                             }
                         }
 
-                        if ($toDelete || $toInsert || $affected)
-                            $this->flash('success', 'Successfully Updated');
-                        else
-                            $this->flash('warning', 'The record was not updated or no changes were made');
+                        if (!$filesData) {
+                            if ($toDelete || $toInsert || $affected)
+                                $this->flash('success', 'Successfully Updated');
+                            else
+                                $this->flash('warning', 'The record was not updated or no changes were made');
+                        }
                     }
                     // $otherTableValues = [
                     //     'parent_field' => $relOptions['save_table_parent_id'],
@@ -290,6 +388,17 @@ class Crud_core
 
 
                 }
+                $insertedFilesAffectedRows = false;
+                if ($filesData) {
+                    foreach ($filesData as $fileDataKey => $fileDataOptions) {
+                        $insertedFilesAffectedRows = $this->filesHandler($fileDataKey, $fileDataOptions);
+                    }
+                }
+
+                if ($insertedFilesAffectedRows || $affected || $toDelete || $toInsert)
+                    $this->flash('success', 'Successfully Updated');
+                else
+                    $this->flash('warning', 'The record was not updated or no changes were made');
 
                 return ['redirect' => $this->base . '/' . $this->table . '/edit/' . $this->id];
             } else {
@@ -302,8 +411,13 @@ class Crud_core
         $form .= '<div class="card card-primary">
             <div class="card-header">
               <h3 class="card-title">' . ($this->action == 'add' ? $this->form_title_add : $this->form_title_update) . '</h3>
-              </div>' . form_open('/' . $this->base . '/' . $this->table . '/' . ($this->action == 'add' ? 'add' : 'edit/' . $this->id)) . '<div class="card-body">
-              <input type="hidden" name="form" value="1"><div class="row">';
+              </div>';
+        if ($this->multipart) {
+            $form .= form_open_multipart('/' . $this->base . '/' . $this->table . '/' . ($this->action == 'add' ? 'add' : 'edit/' . $this->id)) . '<div class="card-body">';
+        } else {
+            $form .= form_open('/' . $this->base . '/' . $this->table . '/' . ($this->action == 'add' ? 'add' : 'edit/' . $this->id)) . '<div class="card-body">';
+        }
+        $form .= '<input type="hidden" name="form" value="1"><div class="row">';
 
         $fields = $this->fields;
         foreach ($this->schema as $field) {
@@ -338,7 +452,6 @@ class Crud_core
                 $rel = $fields[$f->Field]['relation'];
 
                 $rel_table = $rel['table'];
-                $rel_pk = $rel['primary_key'];
                 $rel_order_by = $rel['order_by'];
                 $rel_where =  $rel['where'] ?? false;
 
@@ -383,7 +496,13 @@ class Crud_core
               <button type="submit" class="btn btn-primary">' . ($this->action == 'add' ? $this->form_submit : $this->form_submit_update) . '</button>
               </div>' . form_close() . '</div>';
 
-
+        if ($this->multipart) {
+            $form .= '<script type="text/javascript">
+                    $(document).ready(function () {
+                    bsCustomFileInput.init();
+                    });
+                    </script>';
+        }
 
         return $form;
     }
@@ -488,7 +607,7 @@ class Crud_core
             $input .= '<option value="' . $value . '" ' . set_select($field_type, $value, (isset($this->current_values->{$field_type}) && $this->current_values->{$field_type} == $value ? TRUE : FALSE)) . '>' . ucfirst($value) . '</option>';
         }
         $input .= '</select><script>$(document).ready(function() {
-    $("#' . $field_type . '").select2({theme: "bootstrap4"});
+    $("#' . $field_type . '").select2({theme: "bootstrap4",width:"100%"});
 });</script>';
         return $this->input_wrapper($field_type, $label, $input, $required);
     }
@@ -517,7 +636,7 @@ class Crud_core
             $input .= '<option value="' . $value->{$pk} . '" ' . set_select($field_type, $value->{$pk}, (isset($this->current_values->{$field_type}) && $this->current_values->{$field_type} == $value->{$pk} ? TRUE : FALSE)) . '>' . $display_val . '</option>';
         }
         $input .= '</select><script>$(document).ready(function() {
-    $("#' . $rid . '").select2({theme: "bootstrap4"});
+    $("#' . $rid . '").select2({theme: "bootstrap4",width:"100%"});
 });</script>';
         return $this->input_wrapper($field_type, $label, $input, $required);
     }
@@ -573,7 +692,7 @@ class Crud_core
                 . '>' . $display_val . '</option>';
         }
         $input .= '</select><script>$(document).ready(function() {
-    $("#' . $rid . '").select2({theme: "bootstrap4"});
+    $("#' . $rid . '").select2({theme: "bootstrap4",width:"100%"});
 });</script>';
         return $this->input_wrapper($field_type, $label, $input, $required);
     }
@@ -750,7 +869,7 @@ class Crud_core
         $input .= '
     <script>$(document).ready(function() {
       $("#' . $rid . '").summernote({
-          height: 150,
+        height: 150,
         toolbar: [
           [\'style\', [\'style\',\'bold\', \'italic\', \'underline\', \'clear\']],
           [\'font\', [\'strikethrough\']],
@@ -761,11 +880,112 @@ class Crud_core
           [\'misc\', [ \'codeview\']],
 
         ],
-        fontSizes: [ "14",  "16","18", "20", "22"],
+        fontSizes: [ "14", "16","18", "20", "22"],
 
       });
     });</script>
     ';
+        return $this->input_wrapper($field_type, $label, $input, $required);
+    }
+
+    protected function field_file($field_type, $label, $field_params)
+    {
+        $required = (isset($field_params['required']) && $field_params['required'] ? ' required ' : '');
+        $input = '<div class="custom-file">
+                      <input 
+                      type="file"
+                      name="' . $field_type . '" 
+                      class="custom-file-input" 
+                      id="' . $field_type . '">
+                      <label class="custom-file-label" for="customFile">Choose file</label>
+                    </div>';
+        if (isset($field_params['wrapper_start']) && isset($field_params['wrapper_end'])) {
+            $fileName = $this->files[$field_type] ?? null;
+            $htmlFileName = '';
+            $deleteButton = '';
+
+            if ($field_params['show_file_names'] ?? false)
+                $htmlFileName .= '<div class="file-name-wrapper text-center">' . $fileName . '</div>';
+
+            if ($field_params['delete_callback'] ?? false) {
+                $deleteUrl = $this->getBase() . '/' . $this->getTable() . '/' . $field_params['delete_callback'] . '/' . $this->id;
+                $deleteButton .= '<a 
+                        onclick="return confirm(\'Are you sure you want to delete this file?\')" 
+                        class="' . ($field_params['delete_button_class'] ?? null) . '" 
+                        href="' . $deleteUrl . '">Delete</a>';
+            }
+
+            if ($fileName) {
+                $src = ltrim($field_params['path'], '.') . '/' . $fileName;
+                $input .= $field_params['wrapper_start'] . '<a href="' . $src . '" target="_blank">';
+
+                if (($field_params['is_image'] ?? false) && $field_params['is_image'] === TRUE) {
+                    $input .= '<img class="img-fluid" src="' . $src . '">';
+                } elseif (isset($field_params['placeholder'])) {
+                    $input .= '<img class="img-fluid" src="' . $field_params['placeholder'] . '">';
+                }
+
+                $input .= $htmlFileName . '</a>' . $deleteButton . $field_params['wrapper_end'];
+            }
+        }
+
+        return $this->input_wrapper($field_type, $label, $input, $required);
+    }
+
+    protected function field_files($field_type, $label, $field_params)
+    {
+        $required = (isset($field_params['required']) && $field_params['required'] ? ' required ' : '');
+        $relationOptions = $field_params['files_relation'];
+        $input = '<div class="custom-file">
+                      <input 
+                      multiple
+                      type="file"
+                      name="' . $field_type . '[]" 
+                      class="custom-file-input" 
+                      id="' . $field_type . '">
+                      <label class="custom-file-label" for="customFile">Choose file</label>
+                    </div>';
+        if (isset($field_params['wrapper_start']) && isset($field_params['wrapper_end'])) {
+
+            if ($files = $this->files[$field_type] ?? null) {
+                $input .= $field_params['wrapper_start'];
+
+                foreach ($files as $file) {
+                    $fileType = $file->{$relationOptions['file_type_field']};
+                    $fileName = $file->{$relationOptions['file_name_field']};
+                    $htmlFileName = '';
+                    if ($field_params['show_file_names'] ?? false)
+                        $htmlFileName .= '<div class="file-name-wrapper text-center">' . $fileName . '</div>';
+                    if ($field_params['delete_callback'] ?? false) {
+                        $deleteUrl = $this->getBase() . '/' . $this->getTable() . '/' . $field_params['delete_callback'] . '/' . $this->id . '/' . $file->{$relationOptions['primary_key']};
+                        $htmlFileName .= '<a 
+                        onclick="return confirm(\'Are you sure you want to delete this file?\')" 
+                        class="' . ($field_params['delete_button_class'] ?? null) . '" 
+                        href="' . $deleteUrl . '">Delete</a>';
+                    }
+
+
+                    $input .= $field_params['wrapper_item_start'];
+                    $src = ltrim($field_params['path'], '.') . '/' . $this->id . '/' . $fileName;
+                    if (strpos($fileType, 'image') !== false) {
+                        $input .=  '<a href="' . $src . '" target="_blank"><img class="img-fluid" src="' . $src . '">' . $htmlFileName . '</a>';
+                    } elseif (strpos($fileType, 'video') !== false) {
+                        $input .=  '<video class="img-fluid" src="' . $src . '" controls></video><a href="' . $src . '" target="_blank">' . $htmlFileName . '</a>';
+                    } else {
+                        if (isset($field_params['placeholder'])) {
+                            $placeholder = '<img class="img-fluid" src="' . $field_params['placeholder'] . '">';
+                        } else {
+                            $placeholder = '<i class="fas fa-file"></i>';
+                        }
+                        $input .=  '<a href="' . $src . '" target="_blank" class="d-block text-center">' . $placeholder . ' ' . $htmlFileName . '</a>';
+                    }
+
+                    $input .= $field_params['wrapper_item_end'];
+                }
+                $input .=  $field_params['wrapper_end'];
+            }
+        }
+
         return $this->input_wrapper($field_type, $label, $input, $required);
     }
     /////////////////////////
@@ -955,14 +1175,14 @@ class Crud_core
         return $this->model->schema($this->table);
     }
 
-    protected function get_primary_key_field_name()
+    public function get_primary_key_field_name()
     {
         return $this->model->get_primary_key_field_name($this->table);
     }
 
 
     //Set flashdata session
-    protected function flash($key, $value)
+    public function flash($key, $value)
     {
         $session = session();
         $session->setFlashdata($key, $value);
@@ -992,5 +1212,103 @@ class Crud_core
     public function getBase()
     {
         return $this->base;
+    }
+
+    protected function formHasFileFields()
+    {
+
+        foreach ($this->fields as $field) {
+            $type = $field['type'] ?? false;
+            if (!$type)
+                continue;
+
+            if ($type == 'file' || $type == 'files')
+                return true;
+        }
+
+        return false;
+    }
+
+    protected function fileHandler($fileFieldName, $fieldOptions)
+    {
+        $file = $this->request->getFile($fileFieldName);
+        if ($file->isValid() && !$file->hasMoved()) {
+            $file->move($fieldOptions['path']);
+            return  $file->getName();
+        }
+
+        return false;
+    }
+
+    protected function filesHandler($fileFieldName, $fileFieldOptions)
+    {
+
+        $newFilesData = [];
+        $fileRelationOptions = $fileFieldOptions['files_relation'];
+        if ($files = $this->request->getFiles()) {
+            foreach ($files[$fileFieldName] as $file) {
+                if ($file->isValid() && !$file->hasMoved()) {
+                    $file->move(rtrim($fileFieldOptions['path'], '/') . '/' . $this->id);
+                    $newFilesData[] = [
+                        $fileRelationOptions['parent_field'] => $this->id,
+                        $fileRelationOptions['file_name_field'] => $file->getName(),
+                        $fileRelationOptions['file_type_field'] => $file->getClientMimeType(),
+                    ];
+                } else
+                    return false;
+            }
+        }
+
+        if ($newFilesData)
+            return $this->model->batchInsert($fileRelationOptions['files_table'], $newFilesData);
+
+        return false;
+    }
+
+    /** Get all the file fields from current_values 
+     *  Do not use to get posted values $_FILES
+     * 
+     */
+    public function getFiles($field = false)
+    {
+        if (!$field)
+            return $this->files;
+
+        if (isset($this->files[$field]))
+            return $this->files[$field];
+
+        return false;
+    }
+
+    public function deleteItem($table, $where)
+    {
+        $item = $this->model->getItem($table, $where);
+
+        if ($item)
+            $this->model->deleteItems($table, $where);
+
+        return $item;
+    }
+
+    public function updateItem($table, $where, $data)
+    {
+        $affected = $this->model->updateItem($table, $where, $data);
+        return $affected;
+    }
+
+    public function getItem($table, $where)
+    {
+        return $this->model->getItem($table, $where);
+    }
+
+    public function getFields($field = false)
+    {
+        if (!$field)
+            return $this->fields;
+
+        if ($field = $this->fields[$field] ?? false)
+            return $field;
+
+        return false;
     }
 }

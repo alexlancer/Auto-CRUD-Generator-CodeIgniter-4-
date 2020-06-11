@@ -27,6 +27,15 @@ class CrudModel
         return $this->db->insertID();
     }
 
+    public function getAnyItems($table, $where = false)
+    {
+        $builder = $this->db->table($table);
+        if ($where)
+            $builder->where($where);
+
+        return $builder->get()->getResult();
+    }
+
     public function updateItem($table, $where, $data)
     {
         $this->db->table($table)->where($where)->update($data);
@@ -40,10 +49,10 @@ class CrudModel
     }
 
     //Get one item
-    public function getItem($table, $field, $id)
+    public function getItem($table, $where)
     {
         return $this->db->table($table)
-            ->where([$field => $id])
+            ->where($where)
             ->get()
             ->getRow();
     }

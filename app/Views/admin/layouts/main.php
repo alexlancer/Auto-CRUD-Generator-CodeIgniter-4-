@@ -59,6 +59,8 @@
     <script src="/admin/assets/plugins/summernote/summernote-bs4.min.js"></script>
     <!-- overlayScrollbars -->
     <script src="/admin/assets/plugins/overlayScrollbars/js/jquery.overlayScrollbars.min.js"></script>
+    <!-- Custom BS4 File Input  -->
+    <script src="/admin/assets/plugins/bs-custom-file-input/bs-custom-file-input.min.js"></script>
     <!-- AdminLTE App -->
     <script src="/admin/assets/js/adminlte.js"></script>
 </head>

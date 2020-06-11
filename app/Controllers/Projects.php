@@ -38,7 +38,8 @@ class Projects extends BaseController
 		$data['title'] = $this->crud->getTableTitle();
 
 		$per_page = 20;
-		$columns = ['p_id', 'p_uid', 'p_title', 'p_price', 'tags', 'p_start_date', 'p_end_date', 'p_status',];
+		//'p_start_date', 'p_end_date', 'p_status',
+		$columns = ['p_id', 'p_uid', 'p_title', 'p_price', 'tags', ];
 		$where = null; //['u_status =' => 'Active'];
 		$order = [
 			['p_id', 'ASC']
@@ -107,6 +108,45 @@ class Projects extends BaseController
 				'order' => 'ASC'
 			]
 		];
+		$fields['p_image'] = [
+			'label' => 'Featured Image',
+			'type' => 'file',
+			'path' => './uploads/images',
+			'is_image' => true,
+			'max_size' => '1024',
+			'ext_in' => 'png,jpg,gif',
+			'wrapper_start' => '<div class="row"><div class="col-12 col-sm-3 mt-3 mb-3">',
+			'wrapper_end' => '</div></div>',
+			'show_file_names' => true,
+			'placeholder' => '/admin/assets/img/pdf-icon.png',
+			'delete_callback' => 'removeFeaturedImage',
+			'delete_file' => true,
+			'delete_button_class' => 'btn btn-danger btn-xs'
+		];
+		$fields['project_files'] = [
+			'label' => 'Featured Image',
+			'type' => 'files',
+			'files_relation' => [
+				'files_table' => 'project_files',
+				'primary_key' => 'pf_id',
+				'parent_field' => 'pf_project_id',
+				'file_name_field' => 'pf_file_name',
+				'file_type_field' => 'pf_file_type',
+			],
+			'path' => './uploads/images',
+			//'is_image' => true,
+			'max_size' => '2048',
+			//'ext_in' => 'png,jpg,gif',
+			'wrapper_start' => '<div class="row">',
+			'wrapper_end' => '</div>',
+			'wrapper_item_start' => '<div class="col-4 col-sm-2 mt-3 mb-3">',
+			'wrapper_item_end' => '</div>',
+			'show_file_names' => true,
+			'placeholder' => '/admin/assets/img/file-icon.png',
+			'delete_callback' => 'deleteFile',
+			'delete_file' => true,
+			'delete_button_class' => 'btn btn-danger btn-xs'
+		];
 		$fields['p_description'] = ['label' => 'Description', 'type' => 'editor'];
 		$fields['p_start_date'] = ['label' => 'Starts at', 'required' => true, 'class' => 'col-12 col-sm-6'];
 		$fields['p_end_date'] = ['label' => 'Ends at', 'required' => true, 'class' => 'col-12 col-sm-6'];
@@ -117,6 +157,66 @@ class Projects extends BaseController
 		$fields['p_updated_at'] = ['type' => 'unset'];
 		return $fields;
 	}
+
+
+	public function removeFeaturedImage($parent_id)
+	{
+		$crud = $this->crud;
+		$current_values = $crud->current_values($parent_id);
+		if (!$current_values)
+		return redirect()->to($crud->getBase() . '/' . $crud->getTable());
+
+		$fileColumnName = 'p_image';
+		$field = $crud->getFields($fileColumnName);
+
+		$table = $crud->getTable();
+		$data = [$fileColumnName => ''];
+		$where = [$crud->get_primary_key_field_name() => $parent_id];
+		$affected = $crud->updateItem($table, $where, $data);
+
+		if (!$affected)
+		$crud->flash('warning', 'File could not be deleted');
+		else {
+
+			if ($field['delete_file'] ?? false && $field['delete_file'] === TRUE)
+				unlink($field['path'] . '/' .  $current_values->{$fileColumnName});
+
+			$crud->flash('success', 'File was deleted');
+		}
+
+		$url = $crud->getBase() . '/' . $crud->getTable() . '/edit/' . $parent_id;
+		return redirect()->to($url);
+	}
+
+	public function deletefile($parent_id, $file_id)
+	{
+		$crud = $this->crud;
+		$current_values = $crud->current_values($parent_id);
+		if (!$current_values)
+			return redirect()->to($crud->getBase() . '/' . $crud->getTable());
+
+		$field = $crud->getFields('project_files');
+
+		$table = $field['files_relation']['files_table'];
+		$relationOptions = $field['files_relation'];
+		$where = [$relationOptions['primary_key'] => $file_id];
+		$item = $crud->deleteItem($table, $where);
+
+		if (!$item)
+			$crud->flash('warning', 'File could not be deleted');
+		else {
+
+			if ($field['delete_file'] ?? false && $field['delete_file'] === TRUE)
+				unlink($field['path'] . '/' . $parent_id . '/' . $item->{$relationOptions['file_name_field']});
+
+			$crud->flash('success', 'File was deleted');
+		}
+
+		$url = $crud->getBase() . '/' . $crud->getTable() . '/edit/' . $parent_id;
+		return redirect()->to($url);
+	}
+
+	
 
 	//--------------------------------------------------------------------
 
