@@ -39,7 +39,23 @@ class Projects extends BaseController
 
 		$per_page = 20;
 		//'p_start_date', 'p_end_date', 'p_status',
-		$columns = ['p_id', 'p_uid', 'p_title', 'p_price', 'tags', ];
+		$columns = ['p_id',
+		[
+		 'label' => 'Image',
+		 'callback' => 'callback_featured_image',
+		 'search' => 'p_image',
+		 'search_field_type' => 'text'
+		],
+		 'p_uid',
+		 'p_title',
+		 'p_price',
+		 'tags',
+		  [
+			'label' => 'Days left',
+			'callback' => 'callback_days_left',
+			
+		  ],
+		];
 		$where = null; //['u_status =' => 'Active'];
 		$order = [
 			['p_id', 'ASC']
@@ -124,7 +140,7 @@ class Projects extends BaseController
 			'delete_button_class' => 'btn btn-danger btn-xs'
 		];
 		$fields['project_files'] = [
-			'label' => 'Featured Image',
+			'label' => 'Files',
 			'type' => 'files',
 			'files_relation' => [
 				'files_table' => 'project_files',

@@ -1017,12 +1017,13 @@ class Crud_core
 
             foreach ($columns as $column) {
                 if (is_array($column)) {
-
                     $label = $column['label'];
+                    $th_class = ucfirst(str_replace('_', ' ', $column['label']));
                 } else {
                     $label = $fields[$column]['label'] ?? ucfirst(str_replace('_', ' ', $column));
+                    $th_class = $column;
                 }
-                $table .= '<th class="th-' . $column . '">' . $label . '</th>';
+                $table .= '<th class="th-' . $th_class . '">' . $label . '</th>';
             }
         } else {
 
@@ -1043,25 +1044,33 @@ class Crud_core
             foreach ($columns as $column) {
                 //check date fields
                 if (is_array($column)) {
-                    $table .= '<td></td>';
-                    continue;
-                } elseif (isset($fields[$column]['type']) && strpos($fields[$column]['type'], 'date') !== FALSE) {
-                    $field_type = 'date';
-                } else {
-                    //check this field type in schema
-                    foreach ($this->schema as $field_types) {
-                        if ($field_types->Field != $column)
-                            continue;
 
-                        if (strpos($field_types->Type, 'date') !== FALSE)
-                            $field_type = 'date';
-                        else
-                            $field_type = 'text';
+                    if ($newCol = $column['search'] ?? false) {
+                        $field_type = $column['search_field_type'] ?? 'text';
+                        $label = $column['label'];
+                        $table .= '<td><input type="' . $field_type . '" name="' . $newCol . '" class="form-control pull-right" value="' . set_value($newCol) . '" placeholder="' . $label . '"></td>';
+                    } else {
+                        $table .= '<td></td>';
+                        continue;
                     }
-                }
+                } else {
+                    if (isset($fields[$column]['type']) && strpos($fields[$column]['type'], 'date') !== FALSE) {
+                        $field_type = 'date';
+                    } else {
+                        //check this field type in schema
+                        foreach ($this->schema as $field_types) {
+                            if ($field_types->Field != $column)
+                                continue;
 
-                $label = $fields[$column]['label'] ?? ucfirst(str_replace('_', ' ', $column));
-                $table .= '<td><input type="' . $field_type . '" name="' . $column . '" class="form-control pull-right" value="' . set_value($column) . '" placeholder="' . $label . '"></td>';
+                            if (strpos($field_types->Type, 'date') !== FALSE)
+                                $field_type = 'date';
+                            else
+                                $field_type = 'text';
+                        }
+                    }
+                    $label = $fields[$column]['label'] ?? ucfirst(str_replace('_', ' ', $column));
+                    $table .= '<td><input type="' . $field_type . '" name="' . $column . '" class="form-control pull-right" value="' . set_value($column) . '" placeholder="' . $label . '"></td>';
+                }
             }
         } else {
             foreach ($this->schema as $item) {
@@ -1086,8 +1095,10 @@ class Crud_core
             $fields = $this->fields;
             if ($columns) {
                 foreach ($columns as $column) {
-                    $relation = $fields[$column]['relation'] ?? false;
-                    if ($relation) {
+
+                    if (is_array($column)) {
+                        $display_val = $this->{$column['callback']}($item);
+                    } elseif ($relation = $fields[$column]['relation'] ?? false) {
                         $relTable = $relation['save_table'] ?? false;
                         $relItems = false;
                         if ($relTable) {
