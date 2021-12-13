@@ -130,7 +130,7 @@ class Crud_core
     function view($page_number, $per_page, $columns = null, $where = null, $order = null)
     {
 
-        //$root_url = $this->base . '/ci6/public/' . $this->table;
+        //$root_url = $this->base . '/' . $this->table;
 
         $total_rows = $this->model->countTotalRows($this->table, $where, $this->request, $this->schema, $this->fields);
         $offset = $per_page * ($page_number - 1);
@@ -401,7 +401,7 @@ class Crud_core
                 else
                     $this->flash('warning', 'The record was not updated or no changes were made');
 
-                return ['redirect' => $this->base . '/ci6/public/' . $this->table . '/edit/' . $this->id];
+                return ['redirect' => $this->base . '/' . $this->table . '/edit/' . $this->id];
             } else {
                 // echo '<div>';
                 //  print_r($this->validator->getErrors());
@@ -414,9 +414,9 @@ class Crud_core
               <h3 class="card-title">' . ($this->action == 'add' ? $this->form_title_add : $this->form_title_update) . '</h3>
               </div>';
         if ($this->multipart) {
-            $form .= form_open_multipart('/ci6/public/' . $this->base . '/ci6/public/' . $this->table . '/ci6/public/' . ($this->action == 'add' ? 'add' : 'edit/' . $this->id)) . '<div class="card-body">';
+            $form .= form_open_multipart('/' . $this->base . '/' . $this->table . '/' . ($this->action == 'add' ? 'add' : 'edit/' . $this->id)) . '<div class="card-body">';
         } else {
-            $form .= form_open('/ci6/public/' . $this->base . '/ci6/public/' . $this->table . '/ci6/public/' . ($this->action == 'add' ? 'add' : 'edit/' . $this->id)) . '<div class="card-body">';
+            $form .= form_open('/' . $this->base . '/' . $this->table . '/' . ($this->action == 'add' ? 'add' : 'edit/' . $this->id)) . '<div class="card-body">';
         }
         $form .= '<input type="hidden" name="form" value="1"><div class="row">';
 
@@ -909,7 +909,7 @@ class Crud_core
                 $htmlFileName .= '<div class="file-name-wrapper text-center">' . $fileName . '</div>';
 
             if ($field_params['delete_callback'] ?? false) {
-                $deleteUrl = $this->getBase() . '/ci6/public/' . $this->getTable() . '/ci6/public/' . $field_params['delete_callback'] . '/ci6/public/' . $this->id;
+                $deleteUrl = $this->getBase() . '/' . $this->getTable() . '/' . $field_params['delete_callback'] . '/' . $this->id;
                 $deleteButton .= '<a 
                         onclick="return confirm(\'Are you sure you want to delete this file?\')" 
                         class="' . ($field_params['delete_button_class'] ?? null) . '" 
@@ -917,7 +917,7 @@ class Crud_core
             }
 
             if ($fileName) {
-                $src = ltrim($field_params['path'], '.') . '/ci6/public/' . $fileName;
+                $src = ltrim($field_params['path'], '.') . '/' . $fileName;
                 $input .= $field_params['wrapper_start'] . '<a href="' . $src . '" target="_blank">';
 
                 if (($field_params['is_image'] ?? false) && $field_params['is_image'] === TRUE) {
@@ -958,7 +958,7 @@ class Crud_core
                     if ($field_params['show_file_names'] ?? false)
                         $htmlFileName .= '<div class="file-name-wrapper text-center">' . $fileName . '</div>';
                     if ($field_params['delete_callback'] ?? false) {
-                        $deleteUrl = $this->getBase() . '/ci6/public/' . $this->getTable() . '/ci6/public/' . $field_params['delete_callback'] . '/ci6/public/' . $this->id . '/ci6/public/' . $file->{$relationOptions['primary_key']};
+                        $deleteUrl = $this->getBase() . '/' . $this->getTable() . '/' . $field_params['delete_callback'] . '/' . $this->id . '/' . $file->{$relationOptions['primary_key']};
                         $htmlFileName .= '<a 
                         onclick="return confirm(\'Are you sure you want to delete this file?\')" 
                         class="' . ($field_params['delete_button_class'] ?? null) . '" 
@@ -967,7 +967,7 @@ class Crud_core
 
 
                     $input .= $field_params['wrapper_item_start'];
-                    $src = ltrim($field_params['path'], '.') . '/ci6/public/' . $this->id . '/ci6/public/' . $fileName;
+                    $src = ltrim($field_params['path'], '.') . '/' . $this->id . '/' . $fileName;
                     if (strpos($fileType, 'image') !== false) {
                         $input .=  '<a href="' . $src . '" target="_blank"><img class="img-fluid" src="' . $src . '">' . $htmlFileName . '</a>';
                     } elseif (strpos($fileType, 'video') !== false) {
@@ -1260,7 +1260,7 @@ class Crud_core
         if ($files = $this->request->getFiles()) {
             foreach ($files[$fileFieldName] as $file) {
                 if ($file->isValid() && !$file->hasMoved()) {
-                    $file->move(rtrim($fileFieldOptions['path'], '/ci6/public/') . '/ci6/public/' . $this->id);
+                    $file->move(rtrim($fileFieldOptions['path'], '/') . '/' . $this->id);
                     $newFilesData[] = [
                         $fileRelationOptions['parent_field'] => $this->id,
                         $fileRelationOptions['file_name_field'] => $file->getName(),
