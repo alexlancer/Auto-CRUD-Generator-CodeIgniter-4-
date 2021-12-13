@@ -38,10 +38,10 @@ class Users extends BaseController
 		$data['title'] = $this->crud->getTableTitle();
 
 		$per_page = 10;
-		$columns = ['u_id', 'u_firstname', 'u_lastname', 'u_email', 'u_status'];
+		$columns = ['ID', 'name', 'email'];
 		$where = null;//['u_status =' => 'Active'];
 		$order = [
-			['u_id', 'ASC']
+			['ID', 'ASC']
 		];
 		$data['table'] = $this->crud->view($page, $per_page, $columns, $where, $order);
 		return view('admin/users/table', $data);
@@ -76,13 +76,13 @@ class Users extends BaseController
 	protected function field_options()
 	{
 		$fields = [];
-		$field['u_id'] = ['label' => 'ID'];
-		$fields['u_firstname'] = ['label' => 'First Name', 'required' => true, 'helper' => 'Type your First name', 'class' => 'col-12 col-sm-6'];
-		$fields['u_lastname'] = ['label' =>'Last Name', 'required' => true, 'helper' => 'Type your Last name', 'class' => 'col-12 col-sm-6'];
-		$fields['u_email'] = ['label' => 'Email','required' => true, 'unique' => [true, 'u_email']];
-		$fields['u_status'] = ['label' => 'Status','required' => true,];
-		$fields['u_created_at'] = ['label' => 'Created at', 'only_edit' => true];
-		$fields['u_password'] = ['label' => 'Password',
+		$field['ID'] = ['label' => 'ID'];
+		$fields['name'] = ['label' => 'First Name', 'required' => true, 'helper' => 'Type your First name', 'class' => 'col-12 col-sm-6'];
+		// $fields['u_lastname'] = ['label' =>'Last Name', 'required' => true, 'helper' => 'Type your Last name', 'class' => 'col-12 col-sm-6'];
+		// $fields['u_email'] = ['label' => 'Email','required' => true, 'unique' => [true, 'u_email']];
+		// $fields['u_status'] = ['label' => 'Status','required' => true,];
+		// $fields['u_created_at'] = ['label' => 'Created at', 'only_edit' => true];
+		$fields['password'] = ['label' => 'Password',
 		 'required' => true, 
 		 'only_add' => true,
 		 'type' => 'password',

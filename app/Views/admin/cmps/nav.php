@@ -4,25 +4,25 @@
         $request = service('request');
         ?>
         <li class="nav-item">
-            <a href="/" class="nav-link <?= !$request->uri->getSegment(1) ? 'active' : null; ?>">
+            <a href="/ci6/public/" class="nav-link <?= !$request->uri->getSegment(1) ? 'active' : null; ?>">
                 <i class="nav-icon fas fa-tachometer-alt"></i>
                 <p>Dashboard</p>
             </a>
         </li>
         <li class="nav-item">
-            <a href="/users" class="nav-link <?= $request->uri->getSegment(1) == 'users' ? 'active' : null; ?>">
+            <a href="/ci6/public/users" class="nav-link <?= $request->uri->getSegment(1) == 'users' ? 'active' : null; ?>">
                 <i class="nav-icon fas fa-users"></i>
                 <p>Users</p>
             </a>
         </li>
         <li class="nav-item">
-            <a href="/projects" class="nav-link <?= $request->uri->getSegment(1) == 'projects' ? 'active' : null; ?>">
+            <a href="/ci6/public/projects" class="nav-link <?= $request->uri->getSegment(1) == 'projects' ? 'active' : null; ?>">
                 <i class="nav-icon fas fa-cubes"></i>
                 <p>Projects</p>
             </a>
         </li>
         <li class="nav-item">
-            <a href="/tags" class="nav-link <?= $request->uri->getSegment(1) == 'tags' ? 'active' : null; ?>">
+            <a href="/ci6/public/tags" class="nav-link <?= $request->uri->getSegment(1) == 'tags' ? 'active' : null; ?>">
                 <i class="nav-icon fas fa-tags"></i>
                 <p>Tags</p>
             </a>
